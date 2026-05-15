@@ -16,18 +16,37 @@
 #include <iomanip>
 #include <chrono>
 #include <cstring>
+#include <filesystem>
 #include <sodium.h>
+
+namespace fs = std::filesystem;
+
+static bool configure_local_pari_data() {
+    const fs::path candidates[] = {
+        fs::current_path() / "pari-data",
+        fs::current_path() / ".." / "pari-data",
+    };
+
+    for (const fs::path &dir : candidates) {
+        if (!fs::exists(dir / "seadata")) continue;
+        pari_datadir = pari_strdup(dir.string().c_str());
+        return true;
+    }
+
+    return false;
+}
 
 // ─── Main ────────────────────────────────────────────────────────────────────
 
 int main(int argc, char **argv) {
     // ── Configuration ──────────────────────────────────────────────────────
-    const int TARGET_BITS = 128;   // <-- change this: e.g. 64, 128, 192, 256
+    const int TARGET_BITS = 192;   // <-- change this: e.g. 64, 128, 192, 256
     const bool verbose = (argc > 1 && std::strcmp(argv[1], "--verbose") == 0);
     // ───────────────────────────────────────────────────────────────────────
 
     // Initialise libpari: 500 MB stack, enough for 256-bit+ SEA point counts.
     pari_init(500000000UL, 2);
+    const bool has_seadata = configure_local_pari_data();
 
     // Initialise libsodium
     if (sodium_init() < 0) {
@@ -39,7 +58,10 @@ int main(int argc, char **argv) {
     std::cout
         << BOLD << "  ECC Parameter Generator  (libpari + libsodium)\n" << RESET
         << "  Target: " << TARGET_BITS << "-bit prime p, cofactor h=1, N prime, N≠p\n"
-        << "  Curve:  y² ≡ x³ + ax + b  (mod p)\n";
+        << "  Curve:  y² ≡ x³ - 3x + b  (mod p)\n"
+        << "  seadata: "
+        << (has_seadata ? GREEN + std::string("LOADED") : YELLOW + std::string("NOT FOUND"))
+        << RESET << "\n";
     sep('=');
     std::cout << "\n";
 
@@ -66,7 +88,7 @@ int main(int argc, char **argv) {
             << YELLOW << "[Searching]" << RESET
             << " | Attempt #" << attempt
             << " | p = " << p_str
-            << " | Searching (a,b)...\n";
+            << " | Searching b (with a = -3)...\n";
 
         // ── 2. Search for a curve with prime order over this p ──
         found = search_curve(p, attempt, t0, verbose);

@@ -2,10 +2,12 @@
 
 Generates cryptographically secure elliptic curve parameters using **libpari** (number theory / SEA point counting) and **libsodium** (CSPRNG).
 
-Given a target bit size, it finds a prime `p`, then searches for curve coefficients `a`, `b` such that:
-- `y² ≡ x³ + ax + b (mod p)`
+Given a target bit size, it finds a prime `p`, then searches the fixed-`a` family:
+- `y² ≡ x³ - 3x + b (mod p)`
 - Group order `N` is prime (cofactor h = 1)
 - `N ≠ p` (not anomalous)
+
+The search uses `ellsea(E, 1)` and benefits substantially from PARI `seadata`.
 
 ---
 
@@ -14,8 +16,10 @@ Given a target bit size, it finds a prime `p`, then searches for curve coefficie
 Install the required libraries (Ubuntu/Debian/WSL):
 
 ```bash
-sudo apt install libpari-dev libsodium-dev cmake build-essential
+sudo apt install libpari-dev libsodium-dev pari-seadata cmake build-essential
 ```
+
+If you prefer a local copy instead of the system package, extract the PARI `seadata` archive into `pari-data/seadata` at the repo root. The program auto-detects that directory at startup.
 
 ---
 
@@ -45,6 +49,7 @@ The binary will be at `build/app`.
 
 ```bash
 ./app
+./app --verbose
 ```
 
 Example output:
@@ -53,17 +58,18 @@ Example output:
 ================================================
   ECC Parameter Generator  (libpari + libsodium)
   Target: 128-bit prime p, cofactor h=1, N prime, N≠p
-  Curve:  y² ≡ x³ + ax + b  (mod p)
+  Curve:  y² ≡ x³ - 3x + b  (mod p)
+  seadata: LOADED
 ================================================
 
-[Searching] | Attempt #1 | p = 28134...  | Searching (a,b)...
+[Searching] | Attempt #1 | p = 28134...  | Searching b (with a = -3)...
 
 ================================================
   *** SECURE CURVE FOUND ***
 ================================================
   Bits  : 128
   p     = 281341...
-  a     = 174823...
+  a     = p - 3
   b     = 991234...
   N     = 281341...
   h     = 1  (N is prime, cofactor = 1)

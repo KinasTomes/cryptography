@@ -9,12 +9,12 @@
 // ─── Curve search ────────────────────────────────────────────────────────────
 
 /**
- * Search for random (a, b) pairs over F_p such that:
- *   1. The curve y² = x³ + ax + b is non-singular (discriminant ≠ 0 mod p).
- *   2. The group order N = #E(F_p) is a prime (cofactor h = 1).
- *   3. N ≠ p  (not anomalous — prevents SSSA attack).
+ * Search curves over F_p in the fixed-a family y^2 = x^3 - 3x + b such that:
+ *   1. The curve is non-singular.
+ *   2. The group order N = #E(F_p) is prime (cofactor h = 1).
+ *   3. N != p (not anomalous).
  *
- * Logs progress to stdout.  Returns on first success.
+ * Logs progress to stdout. Returns on first success.
  */
 static std::string trunc(const std::string &s, int w) {
     if ((int)s.size() <= w) return std::string(w - s.size(), ' ') + s;
@@ -25,6 +25,7 @@ CurveResult search_curve(GEN p, long attempt_number,
                           std::chrono::steady_clock::time_point t0,
                           bool verbose) {
     long ab_attempt = 0;
+    GEN a = subii(p, stoi(3));   // a = -3 mod p
 
     if (verbose) {
         std::cout
@@ -43,25 +44,18 @@ CurveResult search_curve(GEN p, long attempt_number,
         ab_attempt++;
         pari_sp av = avma;
 
-        GEN a = random_field_element(p);
         GEN b = random_field_element(p);
 
-        // ── Non-singularity: 4a³ + 27b² ≢ 0 (mod p) ──
-        GEN a3   = Fp_powu(a, 3, p);
+        // For a = -3, discriminant is singular iff b^2 == 4 (mod p).
         GEN b2   = Fp_powu(b, 2, p);
-        GEN disc = Fp_add(
-                       Fp_mulu(a3, 4, p),
-                       Fp_mulu(b2, 27, p),
-                       p);
-
-        if (equaliu(disc, 0)) {
+        if (equaliu(b2, 4)) {
             if (verbose) {
                 double t = elapsed_since(t0);
                 std::cout
                     << std::left
                     << std::setw(7)  << attempt_number
                     << std::setw(7)  << ab_attempt
-                    << std::setw(20) << trunc(gen_to_str(a), 18)
+                    << std::setw(20) << "-3"
                     << std::setw(20) << trunc(gen_to_str(b), 18)
                     << std::setw(20) << "-"
                     << std::setw(8)  << (std::to_string((int)t) + "s")
@@ -81,7 +75,7 @@ CurveResult search_curve(GEN p, long attempt_number,
                     << std::left
                     << std::setw(7)  << attempt_number
                     << std::setw(7)  << ab_attempt
-                    << std::setw(20) << trunc(gen_to_str(a), 18)
+                    << std::setw(20) << "-3"
                     << std::setw(20) << trunc(gen_to_str(b), 18)
                     << std::setw(20) << "-"
                     << std::setw(8)  << (std::to_string((int)t) + "s")
@@ -92,9 +86,28 @@ CurveResult search_curve(GEN p, long attempt_number,
             continue;
         }
 
-        GEN N = ellcard(E, p);
+        // Early-abort SEA: returns 0 as soon as a small bad factor is detected.
+        GEN N = ellsea(E, 1);
         std::string N_str;
-        if (verbose) N_str = gen_to_str(N);
+        if (verbose && !gequal0(N)) N_str = gen_to_str(N);
+
+        if (gequal0(N)) {
+            if (verbose) {
+                double t = elapsed_since(t0);
+                std::cout
+                    << std::left
+                    << std::setw(7)  << attempt_number
+                    << std::setw(7)  << ab_attempt
+                    << std::setw(20) << "-3"
+                    << std::setw(20) << trunc(gen_to_str(b), 18)
+                    << std::setw(20) << "-"
+                    << std::setw(8)  << (std::to_string((int)t) + "s")
+                    << RED << std::setw(20) << "SEA EARLY ABORT" << RESET
+                    << "\n";
+            }
+            avma = av;
+            continue;
+        }
 
         if (equalii(N, p)) {
             if (verbose) {
@@ -103,7 +116,7 @@ CurveResult search_curve(GEN p, long attempt_number,
                     << std::left
                     << std::setw(7)  << attempt_number
                     << std::setw(7)  << ab_attempt
-                    << std::setw(20) << trunc(gen_to_str(a), 18)
+                    << std::setw(20) << "-3"
                     << std::setw(20) << trunc(gen_to_str(b), 18)
                     << std::setw(20) << trunc(N_str, 18)
                     << std::setw(8)  << (std::to_string((int)t) + "s")
@@ -121,7 +134,7 @@ CurveResult search_curve(GEN p, long attempt_number,
                     << std::left
                     << std::setw(7)  << attempt_number
                     << std::setw(7)  << ab_attempt
-                    << std::setw(20) << trunc(gen_to_str(a), 18)
+                    << std::setw(20) << "-3"
                     << std::setw(20) << trunc(gen_to_str(b), 18)
                     << std::setw(20) << trunc(N_str, 18)
                     << std::setw(8)  << (std::to_string((int)t) + "s")
@@ -146,7 +159,7 @@ CurveResult search_curve(GEN p, long attempt_number,
                 << std::left
                 << std::setw(7)  << attempt_number
                 << std::setw(7)  << ab_attempt
-                << std::setw(20) << trunc(gen_to_str(a), 18)
+                << std::setw(20) << "-3"
                 << std::setw(20) << trunc(gen_to_str(b), 18)
                 << std::setw(20) << trunc(N_str, 18)
                 << std::setw(8)  << (std::to_string((int)t) + "s")
