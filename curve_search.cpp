@@ -16,57 +16,123 @@
  *
  * Logs progress to stdout.  Returns on first success.
  */
+static std::string trunc(const std::string &s, int w) {
+    if ((int)s.size() <= w) return std::string(w - s.size(), ' ') + s;
+    return s.substr(0, w - 3) + "...";
+}
+
 CurveResult search_curve(GEN p, long attempt_number,
-                          std::chrono::steady_clock::time_point t0) {
+                          std::chrono::steady_clock::time_point t0,
+                          bool verbose) {
     long ab_attempt = 0;
+
+    if (verbose) {
+        std::cout
+            << CYAN << std::left
+            << std::setw(7)  << "pAtt"
+            << std::setw(7)  << "abTry"
+            << std::setw(20) << "a"
+            << std::setw(20) << "b"
+            << std::setw(20) << "N"
+            << std::setw(8)  << "t"
+            << std::setw(20) << "Result"
+            << RESET << "\n";
+    }
 
     while (true) {
         ab_attempt++;
-        pari_sp av = avma;  // save stack for this (a,b) trial
+        pari_sp av = avma;
 
-        // Pick random a, b in [1, p-1]
         GEN a = random_field_element(p);
         GEN b = random_field_element(p);
 
         // ── Non-singularity: 4a³ + 27b² ≢ 0 (mod p) ──
-        // Compute mod p to keep numbers small.
-        GEN a3   = Fp_powu(a, 3, p);                    // a³ mod p
-        GEN b2   = Fp_powu(b, 2, p);                    // b² mod p
+        GEN a3   = Fp_powu(a, 3, p);
+        GEN b2   = Fp_powu(b, 2, p);
         GEN disc = Fp_add(
                        Fp_mulu(a3, 4, p),
                        Fp_mulu(b2, 27, p),
                        p);
 
         if (equaliu(disc, 0)) {
+            if (verbose) {
+                double t = elapsed_since(t0);
+                std::cout
+                    << std::left
+                    << std::setw(7)  << attempt_number
+                    << std::setw(7)  << ab_attempt
+                    << std::setw(20) << trunc(gen_to_str(a), 18)
+                    << std::setw(20) << trunc(gen_to_str(b), 18)
+                    << std::setw(20) << "-"
+                    << std::setw(8)  << (std::to_string((int)t) + "s")
+                    << RED << std::setw(20) << "SINGULAR" << RESET
+                    << "\n";
+            }
             avma = av;
-            continue;   // singular curve, skip
+            continue;
         }
 
-        // ── Build PARI elliptic curve object ──
-        // ellinit([a, b], p) — short Weierstrass form over F_p
         GEN curve_coeffs = mkvec2(a, b);
         GEN E = ellinit(curve_coeffs, p, 0);
         if (gequal0(E)) {
+            if (verbose) {
+                double t = elapsed_since(t0);
+                std::cout
+                    << std::left
+                    << std::setw(7)  << attempt_number
+                    << std::setw(7)  << ab_attempt
+                    << std::setw(20) << trunc(gen_to_str(a), 18)
+                    << std::setw(20) << trunc(gen_to_str(b), 18)
+                    << std::setw(20) << "-"
+                    << std::setw(8)  << (std::to_string((int)t) + "s")
+                    << RED << std::setw(20) << "DEGENERATE" << RESET
+                    << "\n";
+            }
             avma = av;
-            continue;   // degenerate
+            continue;
         }
 
-        // ── Count points: N = #E(F_p) via Schoof-Elkies-Atkin ──
         GEN N = ellcard(E, p);
+        std::string N_str;
+        if (verbose) N_str = gen_to_str(N);
 
-        // ── Anti-anomalous filter: N ≠ p ──
         if (equalii(N, p)) {
+            if (verbose) {
+                double t = elapsed_since(t0);
+                std::cout
+                    << std::left
+                    << std::setw(7)  << attempt_number
+                    << std::setw(7)  << ab_attempt
+                    << std::setw(20) << trunc(gen_to_str(a), 18)
+                    << std::setw(20) << trunc(gen_to_str(b), 18)
+                    << std::setw(20) << trunc(N_str, 18)
+                    << std::setw(8)  << (std::to_string((int)t) + "s")
+                    << YELLOW << std::setw(20) << "ANOMALOUS (N=p)" << RESET
+                    << "\n";
+            }
             avma = av;
             continue;
         }
 
-        // ── Check N is prime ──
         if (!isprime(N)) {
+            if (verbose) {
+                double t = elapsed_since(t0);
+                std::cout
+                    << std::left
+                    << std::setw(7)  << attempt_number
+                    << std::setw(7)  << ab_attempt
+                    << std::setw(20) << trunc(gen_to_str(a), 18)
+                    << std::setw(20) << trunc(gen_to_str(b), 18)
+                    << std::setw(20) << trunc(N_str, 18)
+                    << std::setw(8)  << (std::to_string((int)t) + "s")
+                    << RED << std::setw(20) << "N NOT PRIME" << RESET
+                    << "\n";
+            }
             avma = av;
             continue;
         }
 
-        // ── Success! Clone onto a longer-lived stack frame before returning ──
+        // ── Success! ──
         CurveResult res;
         res.p = gcopy(p);
         res.a = gcopy(a);
@@ -74,12 +140,26 @@ CurveResult search_curve(GEN p, long attempt_number,
         res.N = gcopy(N);
 
         double t = elapsed_since(t0);
-        std::cout
-            << CYAN << "[Testing]" << RESET
-            << " | Attempt #" << attempt_number
-            << " | (a,b) try #" << ab_attempt
-            << " | t=" << std::fixed << std::setprecision(1) << t << "s"
-            << " | " << GREEN << "PRIME ORDER FOUND" << RESET << "\n";
+        if (verbose) {
+            if (N_str.empty()) N_str = gen_to_str(N);
+            std::cout
+                << std::left
+                << std::setw(7)  << attempt_number
+                << std::setw(7)  << ab_attempt
+                << std::setw(20) << trunc(gen_to_str(a), 18)
+                << std::setw(20) << trunc(gen_to_str(b), 18)
+                << std::setw(20) << trunc(N_str, 18)
+                << std::setw(8)  << (std::to_string((int)t) + "s")
+                << GREEN << std::setw(20) << "PRIME ORDER FOUND!" << RESET
+                << "\n";
+        } else {
+            std::cout
+                << CYAN << "[Testing]" << RESET
+                << " | Attempt #" << attempt_number
+                << " | (a,b) try #" << ab_attempt
+                << " | t=" << std::fixed << std::setprecision(1) << t << "s"
+                << " | " << GREEN << "PRIME ORDER FOUND" << RESET << "\n";
+        }
 
         return res;
     }

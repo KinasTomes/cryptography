@@ -15,13 +15,15 @@
 #include <iostream>
 #include <iomanip>
 #include <chrono>
+#include <cstring>
 #include <sodium.h>
 
 // ─── Main ────────────────────────────────────────────────────────────────────
 
-int main() {
+int main(int argc, char **argv) {
     // ── Configuration ──────────────────────────────────────────────────────
     const int TARGET_BITS = 128;   // <-- change this: e.g. 64, 128, 192, 256
+    const bool verbose = (argc > 1 && std::strcmp(argv[1], "--verbose") == 0);
     // ───────────────────────────────────────────────────────────────────────
 
     // Initialise libpari: 500 MB stack, enough for 256-bit+ SEA point counts.
@@ -63,12 +65,11 @@ int main() {
         std::cout
             << YELLOW << "[Searching]" << RESET
             << " | Attempt #" << attempt
-            << " | p = " << p_str.substr(0, 20)
-            << (p_str.size() > 20 ? "..." : "")
-            << " | Searching (a,b)...    \n";
+            << " | p = " << p_str
+            << " | Searching (a,b)...\n";
 
         // ── 2. Search for a curve with prime order over this p ──
-        found = search_curve(p, attempt, t0);
+        found = search_curve(p, attempt, t0, verbose);
 
         // search_curve returns only on success; we're done.
         (void)av;   // stack state is managed inside search_curve

@@ -37,6 +37,7 @@ struct CurveResult {
 };
 
 CurveResult search_curve(GEN p, long attempt_number,
-                         std::chrono::steady_clock::time_point t0);
+                         std::chrono::steady_clock::time_point t0,
+                         bool verbose = false);
 
 #endif // ECC_GENERATOR_H

@@ -21,9 +21,9 @@ double elapsed_since(std::chrono::steady_clock::time_point t0) {
 
 // Print a GEN value as a decimal string (caller must own a PARI stack frame).
 std::string gen_to_str(GEN g) {
-    // GENtostr allocates on the PARI stack; wrap in std::string immediately.
     char *s = GENtostr(g);
     std::string result(s);
+    pari_free(s);
     return result;
 }
 

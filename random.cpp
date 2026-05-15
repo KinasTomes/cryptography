@@ -24,24 +24,28 @@ void csprng_bytes(void *buf, size_t len) {
 GEN random_odd_of_bits(int bits) {
     int bytes = (bits + 7) / 8;
 
-    // Allocate a temporary byte buffer.
     unsigned char *buf = (unsigned char *)pari_malloc(bytes);
     csprng_bytes(buf, bytes);
 
     // Force top bit → correct magnitude.
     int top_bit_pos = (bits - 1) % 8;
-    buf[0] |=  (unsigned char)(1u << top_bit_pos);   // set bit (bits-1)
-    buf[0] &= (unsigned char)((1u << (top_bit_pos + 1)) - 1u); // clear higher bits
+    buf[0] |=  (unsigned char)(1u << top_bit_pos);
+    buf[0] &= (unsigned char)((1u << (top_bit_pos + 1)) - 1u);
 
     // Force bottom bit → odd.
     buf[bytes - 1] |= 0x01u;
 
-    // Convert raw bytes (big-endian) to a PARI integer.
-    GEN result = strtoi("0");  // start at 0
-    for (int i = 0; i < bytes; i++) {
-        result = addii(mulis(result, 256), stoi(buf[i]));
-    }
+    // Convert bytes -> hex string -> GEN in one PARI call.
+    char *hex = (char *)pari_malloc(bytes * 2 + 3);
+    hex[0] = '0';
+    hex[1] = 'x';
+    for (int i = 0; i < bytes; i++)
+        sprintf(hex + 2 + i * 2, "%02x", buf[i]);
+    hex[bytes * 2 + 2] = '\0';
 
+    GEN result = strtoi(hex);
+
+    pari_free(hex);
     pari_free(buf);
     return result;
 }
@@ -52,18 +56,14 @@ GEN random_odd_of_bits(int bits) {
  */
 GEN random_field_element(GEN p) {
     long bits = expi(p) + 1;   // bit-length of p
-    GEN result;
-    do {
-        pari_sp av = avma;      // save stack
+    while (true) {
+        pari_sp av = avma;
         GEN candidate = random_odd_of_bits(bits);
-        // candidate may be >= p; reduce mod p
-        result = gmod(candidate, p);
+        GEN result = gmod(candidate, p);
         if (equaliu(result, 0)) {
-            avma = av;          // discard and retry
+            avma = av;
             continue;
         }
-        // Keep result (do NOT restore avma — we want to return it)
-        break;
-    } while (true);
-    return result;
+        return result;
+    }
 }

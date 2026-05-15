@@ -18,16 +18,15 @@ GEN generate_random_prime(int bits) {
 
         GEN candidate = random_odd_of_bits(bits);
 
-        // PARI isprime: 0 = composite, 1 = probable prime, 2 = proven prime
-        // For speed we use ispseudoprime (BPSW) then confirm with isprime.
+        // Filter composites quickly before running the full primality proof.
         if (!ispseudoprime(candidate, 0)) {
-            avma = av;   // discard
+            avma = av;
             continue;
         }
         if (!isprime(candidate)) {
             avma = av;
             continue;
         }
-        return candidate;   // caller owns this stack object
+        return candidate;
     }
 }
